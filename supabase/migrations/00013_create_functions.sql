@@ -1,0 +1,2 @@
+-- Placeholder migration.
+-- Implementação será feita na Fase 3.
