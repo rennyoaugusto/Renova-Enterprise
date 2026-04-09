@@ -30,7 +30,8 @@ export const definePasswordSchema = z
 export type DefinePasswordInput = z.infer<typeof definePasswordSchema>
 
 export const inviteUserSchema = z.object({
-  nome: z.string().min(3, "Informe o nome completo"),
+  nome: z.string().min(2, "Informe o nome"),
+  sobrenome: z.string().min(2, "Informe o sobrenome"),
   username: z
     .string()
     .min(3, "Informe o usuário")

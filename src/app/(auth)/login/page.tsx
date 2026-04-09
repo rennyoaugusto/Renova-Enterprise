@@ -12,6 +12,9 @@ import { ThemeToggle } from "@/components/shared/theme-toggle"
 import { createClient } from "@/lib/supabase/client"
 import { type LoginInput, loginSchema } from "@/lib/validations"
 
+/** Imagem de fundo: coloque o arquivo em public/brand/login-background.jpg (veja comentário no layout abaixo). */
+const LOGIN_BG_URL = "/brand/login-background.jpg"
+
 export default function LoginPage() {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
@@ -46,26 +49,39 @@ export default function LoginPage() {
     }
 
     router.push("/dashboard")
-    router.refresh()
   }
 
   return (
-    <main className="auth-surface relative min-h-screen lg:grid lg:grid-cols-[minmax(0,1fr)_minmax(0,420px)] xl:grid-cols-[minmax(0,1.15fr)_minmax(0,440px)]">
-      <div className="absolute right-4 top-4 z-10 lg:right-6 lg:top-6">
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-10 sm:px-6">
+      {/* Fundo base + imagem (opcional até você adicionar o arquivo em public/brand/) */}
+      <div
+        className="pointer-events-none absolute inset-0 bg-[hsl(var(--background))]"
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.38] dark:opacity-[0.28]"
+        style={{ backgroundImage: `url('${LOGIN_BG_URL}')` }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[hsl(var(--background))] via-[hsl(var(--background))]/55 to-[hsl(var(--background))]"
+        aria-hidden
+      />
+
+      <div className="absolute right-4 top-4 z-20 sm:right-6 sm:top-6">
         <ThemeToggle />
       </div>
 
-      {/* Coluna marca + contexto */}
-      <div className="relative hidden flex-col justify-between border-b border-[hsl(var(--border))] bg-[hsl(var(--background-elevated))] px-10 py-12 lg:flex lg:border-b-0 lg:border-r">
-        <div className="absolute inset-0 bg-[radial-gradient(ellipse_80%_60%_at_20%_-10%,hsl(var(--primary)/0.12),transparent)]" />
-        <div className="relative">
-          <div className="flex items-center gap-4">
+      {/* Bloco central: marca + login lado a lado (sem esticar na largura da tela) */}
+      <div className="relative z-10 flex w-full max-w-[960px] flex-col items-center gap-10 lg:flex-row lg:items-start lg:justify-center lg:gap-12 xl:gap-14">
+        <section className="w-full max-w-md text-center lg:flex-1 lg:text-left">
+          <div className="flex flex-col items-center gap-4 lg:flex-row lg:items-center lg:gap-4">
             <Image
               src="/brand/renova-icon.png"
               alt="Renova"
-              width={56}
-              height={56}
-              className="rounded-2xl shadow-sm"
+              width={96}
+              height={96}
+              className="rounded-3xl shadow-md ring-1 ring-[hsl(var(--primary)/0.2)]"
               priority
             />
             <div>
@@ -74,16 +90,16 @@ export default function LoginPage() {
             </div>
           </div>
 
-          <h2 className="mt-12 max-w-md text-2xl font-semibold leading-snug tracking-tight text-[hsl(var(--foreground))] xl:text-3xl">
+          <h2 className="mt-8 text-2xl font-semibold leading-snug tracking-tight text-[hsl(var(--foreground))] lg:mt-10 xl:text-3xl">
             Gestão corporativa e validação comercial em um só lugar.
           </h2>
-          <ul className="mt-8 max-w-md space-y-3 text-sm leading-relaxed text-[hsl(var(--muted))]">
+          <ul className="mt-6 space-y-3 text-left text-sm leading-relaxed text-[hsl(var(--muted))]">
             <li className="flex gap-2">
               <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--primary))]" />
               Fluxo de validações por etapas, com SLA e papéis definidos.
             </li>
             <li className="flex gap-2">
-              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--accent))]" />
+              <span className="mt-1.5 h-1.5 w-1.5 shrink-0 rounded-full bg-[hsl(var(--primary-strong))]" />
               Transparência entre vendedor, analista, comercial e coordenação.
             </li>
             <li className="flex gap-2">
@@ -91,37 +107,21 @@ export default function LoginPage() {
               Ambiente seguro, com convites e controle de acesso por perfil.
             </li>
           </ul>
-        </div>
-        <p className="relative text-xs text-[hsl(var(--fg-subtle))]">MK Solutions · Renova</p>
-      </div>
+        </section>
 
-      {/* Coluna login */}
-      <div className="flex min-h-screen flex-col justify-center px-4 py-12 sm:px-8 lg:px-10">
-        <div className="mx-auto w-full max-w-sm lg:max-w-md">
-          <div className="mb-8 flex flex-col items-center gap-3 lg:hidden">
-            <Image
-              src="/brand/renova-icon.png"
-              alt="Renova logo"
-              width={52}
-              height={52}
-              className="rounded-2xl"
-              priority
-            />
-            <div className="text-center">
-              <p className="text-base font-semibold text-[hsl(var(--foreground))]">
-                Renova Enterprise Management System
+        <section className="w-full max-w-[420px] shrink-0">
+          <div className="auth-glass-card w-full">
+            <div className="px-8 py-9 sm:px-10 sm:py-10">
+              <h1 className="text-xl font-bold tracking-tight text-[hsl(var(--foreground))] sm:text-[1.65rem]">
+                Acessar o sistema
+              </h1>
+              <p className="mt-2 text-sm leading-relaxed text-[hsl(var(--muted))]">
+                Use seu <strong className="font-medium text-[hsl(var(--foreground))]">e-mail corporativo</strong> e senha.
+                Convites usam senha provisória até você definir uma nova no primeiro acesso.
               </p>
-              <p className="text-sm text-[hsl(var(--muted))]">Gestão corporativa e validação comercial</p>
-            </div>
-          </div>
 
-          <div className="surface-card-strong w-full">
-            <div className="p-7 sm:p-8">
-              <h1 className="text-xl font-semibold text-[hsl(var(--foreground))] sm:text-2xl">Acessar o sistema</h1>
-              <p className="mt-1.5 text-sm text-[hsl(var(--muted))]">Entre com suas credenciais corporativas.</p>
-
-              <form className="mt-6 space-y-4" onSubmit={handleSubmit(onSubmit)}>
-                <div className="space-y-1.5">
+              <form className="mt-8 space-y-5" onSubmit={handleSubmit(onSubmit)}>
+                <div className="space-y-2">
                   <label className="block text-sm font-medium text-[hsl(var(--foreground))]" htmlFor="email">
                     E-mail
                   </label>
@@ -130,7 +130,7 @@ export default function LoginPage() {
                     type="email"
                     autoComplete="email"
                     placeholder="voce@empresa.com"
-                    className="premium-input"
+                    className="login-auth-input"
                     {...register("email")}
                   />
                   {errors.email ? (
@@ -138,7 +138,7 @@ export default function LoginPage() {
                   ) : null}
                 </div>
 
-                <div className="space-y-1.5">
+                <div className="space-y-2">
                   <label className="block text-sm font-medium text-[hsl(var(--foreground))]" htmlFor="password">
                     Senha
                   </label>
@@ -148,13 +148,13 @@ export default function LoginPage() {
                       type={showPassword ? "text" : "password"}
                       autoComplete="current-password"
                       placeholder="••••••••"
-                      className="premium-input pr-11"
+                      className="login-auth-input pr-12"
                       {...register("password")}
                     />
                     <button
                       type="button"
                       onClick={() => setShowPassword((v) => !v)}
-                      className="absolute right-2 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[hsl(var(--muted))] transition hover:bg-[hsl(var(--background-soft))] hover:text-[hsl(var(--foreground))]"
+                      className="absolute right-2.5 top-1/2 flex h-9 w-9 -translate-y-1/2 items-center justify-center rounded-lg text-[hsl(var(--muted))] transition hover:bg-[hsl(var(--foreground)/0.06)] hover:text-[hsl(var(--foreground))] dark:hover:bg-[hsl(0_0%_100%/0.06)]"
                       aria-label={showPassword ? "Ocultar senha" : "Mostrar senha"}
                     >
                       {showPassword ? <EyeOff size={18} /> : <Eye size={18} />}
@@ -167,23 +167,23 @@ export default function LoginPage() {
 
                 {serverError ? <div className="alert-error">{serverError}</div> : null}
 
-                <button type="submit" disabled={isSubmitting} className="premium-button w-full">
+                <button type="submit" disabled={isSubmitting} className="login-auth-submit">
                   {isSubmitting ? "Entrando..." : "Entrar"}
-                  {!isSubmitting && <ArrowRight size={15} />}
+                  {!isSubmitting && <ArrowRight size={17} strokeWidth={2.25} />}
                 </button>
               </form>
             </div>
 
-            <div className="border-t border-[hsl(var(--border))] px-7 py-4 sm:px-8">
+            <div className="border-t border-[hsl(var(--border))] px-8 py-4 sm:px-10">
               <Link
                 href="/redefinir-senha"
-                className="text-sm font-medium text-[hsl(var(--primary))] transition hover:text-[hsl(var(--primary-strong))]"
+                className="text-sm font-semibold text-[hsl(var(--primary))] transition hover:text-[hsl(var(--primary-strong))]"
               >
-                Esqueci minha senha / Redefinir senha
+                Esqueci minha senha!
               </Link>
             </div>
           </div>
-        </div>
+        </section>
       </div>
     </main>
   )

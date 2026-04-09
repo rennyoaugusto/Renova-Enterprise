@@ -1,7 +1,6 @@
 import { NextResponse } from "next/server"
 
 import { buildAuthCallbackRecoveryUrl } from "@/lib/app-url"
-import { sendRecoveryEmailViaResend } from "@/lib/email/send-recovery-via-resend"
 import { getCurrentUserWithRole } from "@/lib/auth"
 import { ADMIN_ROLES } from "@/lib/constants"
 import { supabaseAdmin } from "@/lib/supabase/admin"
@@ -28,7 +27,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
     return NextResponse.json(
       {
         error:
-          "Configure NEXT_PUBLIC_APP_URL (ex.: https://pilar-system-8ywy.vercel.app) para gerar o link de redefinição."
+          "Configure NEXT_PUBLIC_APP_URL (ex.: https://seu-dominio.com) e inclua a URL de callback nas Redirect URLs do Supabase."
       },
       { status: 500 }
     )
@@ -36,7 +35,7 @@ export async function POST(_request: Request, { params }: RouteParams) {
 
   const { data: profile, error: profileError } = await supabaseAdmin
     .from("profiles")
-    .select("email,nome")
+    .select("email")
     .eq("id", params.id)
     .maybeSingle()
 
@@ -44,28 +43,14 @@ export async function POST(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Usuário ou e-mail não encontrado" }, { status: 404 })
   }
 
-  const { data: linkData, error: linkError } = await supabaseAdmin.auth.admin.generateLink({
-    type: "recovery",
-    email: profile.email,
-    options: { redirectTo }
-  })
+  const { error } = await supabaseAdmin.auth.resetPasswordForEmail(profile.email, { redirectTo })
 
-  if (linkError || !linkData?.properties?.action_link) {
-    return NextResponse.json(
-      { error: linkError?.message ?? "Não foi possível gerar o link de recuperação" },
-      { status: 500 }
-    )
-  }
-
-  const actionLink = linkData.properties.action_link
-  const sent = await sendRecoveryEmailViaResend(actionLink, profile.nome ?? undefined)
-
-  if (!sent.ok) {
+  if (error) {
     return NextResponse.json(
       {
-        error: sent.error,
+        error: error.message,
         hint:
-          "Configure RESEND_API_KEY e RESEND_FROM_EMAIL no Vercel. No Supabase: Authentication → URL Configuration (Site URL e Redirect URLs com sua URL de produção) e o template em email-templates/supabase-reset-password.html."
+          "O e-mail é enviado pelo Supabase (Authentication → E-mail templates). Verifique SMTP do projeto e Redirect URLs com /api/auth/callback."
       },
       { status: 503 }
     )

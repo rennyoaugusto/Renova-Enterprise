@@ -1,6 +1,7 @@
 "use client"
 
 import Link from "next/link"
+import { useRouter } from "next/navigation"
 import { useEffect, useMemo, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
@@ -82,6 +83,22 @@ function margemClass(margem: number | null) {
   return "text-[hsl(var(--success))] font-medium"
 }
 
+/** Exibe primeiro + último nome; se o nome completo for longo, adiciona reticências. Hover: use `title` com o nome completo. */
+function formatClienteCelula(nomeCompleto: string, maxLen = 34): string {
+  const t = nomeCompleto.trim()
+  if (!t) return "—"
+  if (t.length <= maxLen) return t
+  const parts = t.split(/\s+/).filter(Boolean)
+  if (parts.length >= 2) {
+    const primeiro = parts[0]!
+    const ultimo = parts[parts.length - 1]!
+    const base = `${primeiro} ${ultimo}`
+    if (base.length + 1 <= maxLen) return `${base}…`
+    return `${base.slice(0, Math.max(1, maxLen - 1))}…`
+  }
+  return `${t.slice(0, Math.max(1, maxLen - 1))}…`
+}
+
 function StatCard({ label, value, hint }: { label: string; value: number; hint?: string }) {
   return (
     <div className="surface-card flex flex-col gap-0.5 rounded-xl px-4 py-3.5 sm:px-5 sm:py-4">
@@ -97,6 +114,7 @@ function StatCard({ label, value, hint }: { label: string; value: number; hint?:
 }
 
 export function ValidacoesList({ canRegister = false }: ValidacoesListProps) {
+  const router = useRouter()
   const [items, setItems] = useState<ValidacaoListItem[]>([])
   const [loading, setLoading] = useState(true)
   const [refreshing, setRefreshing] = useState(false)
@@ -542,15 +560,15 @@ export function ValidacoesList({ canRegister = false }: ValidacoesListProps) {
                 ))}
               </div>
 
-              <div className="hidden overflow-x-auto md:block">
-                <table className="data-table min-w-[720px] xl:min-w-0">
+              <div className="hidden w-full min-w-0 overflow-x-auto md:block">
+                <table className="data-table data-table--rows validacoes-data-table min-w-[1320px] xl:min-w-[1440px]">
                   <thead>
                     <tr>
                       <th className="pl-0">Cliente</th>
                       <th className="hidden xl:table-cell">Vendedor</th>
                       <th className="hidden xl:table-cell">Analista</th>
                       <th>Status</th>
-                      <th>Etapa</th>
+                      <th className="pr-3">Etapa</th>
                       <th className="hidden xl:table-cell">Rev.</th>
                       <th>Valor</th>
                       <th className="hidden xl:table-cell">Mão de obra</th>
@@ -561,56 +579,94 @@ export function ValidacoesList({ canRegister = false }: ValidacoesListProps) {
                     </tr>
                   </thead>
                   <tbody>
-                    {enrichedItems.map((item) => (
-                      <tr key={item.id} className="group">
-                        <td className="pl-0">
-                          <Link
-                            href={`/validacoes/${item.id}`}
-                            className="font-medium text-[hsl(var(--foreground))] transition-colors group-hover:text-[hsl(var(--primary))]"
-                          >
-                            {item.nome_cliente}
-                          </Link>
-                        </td>
-                        <td className="hidden text-[hsl(var(--muted))] xl:table-cell">
-                          {item.vendedor_nome ?? "—"}
-                        </td>
-                        <td className="hidden text-[hsl(var(--muted))] xl:table-cell">
-                          {item.analista_nome ?? "—"}
-                        </td>
-                        <td>
-                          <span className={STATUS_TAG_CLASS[item.status]}>{STATUS_LABEL[item.status]}</span>
-                        </td>
-                        <td>
-                          <p className="mb-1 text-xs font-medium text-[hsl(var(--foreground))]">
-                            {ETAPA_LABEL[item.etapa_atual]}
-                          </p>
-                          <div className="progress-bar w-24 xl:w-28">
-                            <div className="progress-bar-fill" style={{ width: `${item.progress}%` }} />
-                          </div>
-                        </td>
-                        <td className="hidden text-[hsl(var(--foreground))] xl:table-cell">{item.numero_revisoes}</td>
-                        <td className="whitespace-nowrap text-[hsl(var(--foreground))]">
-                          {formatCurrency(item.valorTotal)}
-                        </td>
-                        <td className="hidden whitespace-nowrap text-[hsl(var(--foreground))] xl:table-cell">
-                          {formatCurrency(item.maoObra)}
-                        </td>
-                        <td className="hidden whitespace-nowrap text-[hsl(var(--foreground))] xl:table-cell">
-                          {formatCurrency(item.recorrente)}
-                        </td>
-                        <td className="hidden xl:table-cell">
-                          <span className={margemClass(item.margem)}>
-                            {item.margem === null ? "—" : `${item.margem.toFixed(1)}%`}
-                          </span>
-                        </td>
-                        <td>
-                          <span className={item.sla.tagClass}>{item.sla.label}</span>
-                        </td>
-                        <td className="whitespace-nowrap pr-0 text-right text-xs text-[hsl(var(--muted))]">
-                          {formatDistanceToNow(new Date(item.atualizado_em), { addSuffix: true, locale: ptBR })}
-                        </td>
-                      </tr>
-                    ))}
+                    {enrichedItems.map((item) => {
+                      const href = `/validacoes/${item.id}`
+                      function go() {
+                        router.push(href)
+                      }
+                      return (
+                        <tr
+                          key={item.id}
+                          role="link"
+                          tabIndex={0}
+                          aria-label={`Abrir validação: ${item.nome_cliente}`}
+                          className="group"
+                          onClick={go}
+                          onKeyDown={(event) => {
+                            if (event.key === "Enter" || event.key === " ") {
+                              event.preventDefault()
+                              go()
+                            }
+                          }}
+                        >
+                          <td className="pl-0">
+                            <span
+                              className="inline-block max-w-[14rem] truncate font-semibold text-[hsl(var(--foreground))] transition-colors group-hover:text-[hsl(var(--primary))] xl:max-w-[18rem]"
+                              title={item.nome_cliente}
+                            >
+                              {formatClienteCelula(item.nome_cliente)}
+                            </span>
+                          </td>
+                          <td className="hidden max-w-[10rem] xl:table-cell">
+                            <span
+                              className="block truncate text-[hsl(var(--muted))]"
+                              title={item.vendedor_nome ?? undefined}
+                            >
+                              {item.vendedor_nome ?? "—"}
+                            </span>
+                          </td>
+                          <td className="hidden max-w-[10rem] xl:table-cell">
+                            <span
+                              className="block truncate text-[hsl(var(--muted))]"
+                              title={item.analista_nome ?? undefined}
+                            >
+                              {item.analista_nome ?? "—"}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`${STATUS_TAG_CLASS[item.status]} whitespace-nowrap`}>
+                              {STATUS_LABEL[item.status]}
+                            </span>
+                          </td>
+                          <td className="pr-3">
+                            <div className="inline-flex max-w-[17rem] items-center gap-2">
+                              <span className="shrink-0 text-xs font-semibold text-[hsl(var(--foreground))]">
+                                {ETAPA_LABEL[item.etapa_atual]}
+                              </span>
+                              <div className="progress-bar progress-bar--comfortable h-[5px] w-[4.5rem] shrink-0 xl:w-[5.5rem]">
+                                <div className="progress-bar-fill" style={{ width: `${item.progress}%` }} />
+                              </div>
+                              <span className="shrink-0 text-[0.6875rem] tabular-nums text-[hsl(var(--fg-subtle))]">
+                                {item.progress}%
+                              </span>
+                            </div>
+                          </td>
+                          <td className="hidden tabular-nums text-[hsl(var(--foreground))] xl:table-cell">
+                            {item.numero_revisoes}
+                          </td>
+                          <td className="whitespace-nowrap font-medium tabular-nums text-[hsl(var(--foreground))]">
+                            {formatCurrency(item.valorTotal)}
+                          </td>
+                          <td className="hidden whitespace-nowrap tabular-nums text-[hsl(var(--foreground))] xl:table-cell">
+                            {formatCurrency(item.maoObra)}
+                          </td>
+                          <td className="hidden whitespace-nowrap tabular-nums text-[hsl(var(--foreground))] xl:table-cell">
+                            {formatCurrency(item.recorrente)}
+                          </td>
+                          <td className="hidden tabular-nums xl:table-cell">
+                            <span className={margemClass(item.margem)}>
+                              {item.margem === null ? "—" : `${item.margem.toFixed(1)}%`}
+                            </span>
+                          </td>
+                          <td>
+                            <span className={`${item.sla.tagClass} whitespace-nowrap`}>{item.sla.label}</span>
+                          </td>
+                          <td className="whitespace-nowrap pr-0 text-right text-xs text-[hsl(var(--muted))]">
+                            {formatDistanceToNow(new Date(item.atualizado_em), { addSuffix: true, locale: ptBR })}
+                          </td>
+                        </tr>
+                      )
+                    })}
                   </tbody>
                 </table>
               </div>

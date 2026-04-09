@@ -11,10 +11,16 @@ const protectedRoutes = [
 
 const authRoutes = ["/login", "/redefinir-senha", "/primeiro-acesso"]
 
+/** Rotas onde usuário autenticado não deve ser mandado ao dashboard (ex.: recuperação de senha após o link do e-mail). */
+const authRoutesAllowLoggedIn = ["/primeiro-acesso"]
+
 export async function middleware(request: NextRequest) {
   const { pathname } = request.nextUrl
   const isProtectedRoute = protectedRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
   const isAuthRoute = authRoutes.some((route) => pathname === route || pathname.startsWith(`${route}/`))
+  const isAuthRouteRedirectIfLoggedIn =
+    isAuthRoute &&
+    !authRoutesAllowLoggedIn.some((route) => pathname === route || pathname.startsWith(`${route}/`))
 
   let response = NextResponse.next({ request })
 
@@ -47,11 +53,24 @@ export async function middleware(request: NextRequest) {
     data: { user }
   } = await supabase.auth.getUser()
 
+  const meta = user?.user_metadata as Record<string, unknown> | undefined
+  const primeiroAcesso =
+    Boolean(user) &&
+    (meta?.primeiro_acesso === true || meta?.primeiro_acesso === "true")
+
+  if (user && primeiroAcesso) {
+    const allowPrimeiro = pathname === "/primeiro-acesso" || pathname.startsWith("/primeiro-acesso/")
+    const allowApi = pathname.startsWith("/api/")
+    if (!allowPrimeiro && !allowApi) {
+      return NextResponse.redirect(new URL("/primeiro-acesso", request.url))
+    }
+  }
+
   if (isProtectedRoute && !user) {
     return NextResponse.redirect(new URL("/login", request.url))
   }
 
-  if (isAuthRoute && user) {
+  if (isAuthRouteRedirectIfLoggedIn && user && !primeiroAcesso) {
     return NextResponse.redirect(new URL("/dashboard", request.url))
   }
 

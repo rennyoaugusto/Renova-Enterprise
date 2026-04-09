@@ -12,10 +12,13 @@ import { ThemeToggle } from "@/components/shared/theme-toggle"
 import { createClient } from "@/lib/supabase/client"
 import { definePasswordSchema, type DefinePasswordInput } from "@/lib/validations"
 
+const AUTH_BG_URL = "/brand/login-background.jpg"
+
 export default function PrimeiroAcessoPage() {
   const router = useRouter()
   const [serverError, setServerError] = useState<string | null>(null)
   const [ready, setReady] = useState(false)
+  const [sessionChecked, setSessionChecked] = useState(false)
 
   const {
     register,
@@ -30,6 +33,27 @@ export default function PrimeiroAcessoPage() {
     setReady(Boolean(process.env.NEXT_PUBLIC_SUPABASE_URL && process.env.NEXT_PUBLIC_SUPABASE_ANON_KEY))
   }, [])
 
+  useEffect(() => {
+    let cancelled = false
+    async function check() {
+      const supabase = createClient()
+      const {
+        data: { user }
+      } = await supabase.auth.getUser()
+      if (!cancelled) {
+        if (!user) {
+          router.replace("/login")
+          return
+        }
+        setSessionChecked(true)
+      }
+    }
+    void check()
+    return () => {
+      cancelled = true
+    }
+  }, [router])
+
   async function onSubmit(values: DefinePasswordInput) {
     setServerError(null)
 
@@ -39,63 +63,76 @@ export default function PrimeiroAcessoPage() {
     }
 
     const supabase = createClient()
-    const { error } = await supabase.auth.updateUser({ password: values.password })
+    const { error } = await supabase.auth.updateUser({
+      password: values.password,
+      data: { primeiro_acesso: false }
+    })
 
     if (error) {
-      setServerError("Não foi possível definir a senha. Abra novamente o link recebido por e-mail.")
+      setServerError("Não foi possível definir a senha. Entre novamente com e-mail e senha provisória.")
       return
     }
 
     router.push("/dashboard")
-    router.refresh()
+  }
+
+  if (!sessionChecked) {
+    return (
+      <main className="relative flex min-h-screen items-center justify-center bg-[hsl(var(--background))]">
+        <p className="text-sm text-[hsl(var(--muted))]">Carregando...</p>
+      </main>
+    )
   }
 
   return (
-    <main className="auth-surface relative flex min-h-screen flex-col items-center justify-center px-4 py-12">
+    <main className="relative flex min-h-screen flex-col items-center justify-center overflow-hidden px-4 py-12">
+      <div className="pointer-events-none absolute inset-0 bg-[hsl(var(--background))]" aria-hidden />
+      <div
+        className="pointer-events-none absolute inset-0 bg-cover bg-center bg-no-repeat opacity-[0.38] dark:opacity-[0.28]"
+        style={{ backgroundImage: `url('${AUTH_BG_URL}')` }}
+        aria-hidden
+      />
+      <div
+        className="pointer-events-none absolute inset-0 bg-gradient-to-b from-[hsl(var(--background))] via-[hsl(var(--background))]/55 to-[hsl(var(--background))]"
+        aria-hidden
+      />
 
-      <div className="absolute right-5 top-5">
+      <div className="absolute right-5 top-5 z-20">
         <ThemeToggle />
       </div>
 
-      {/* Brand */}
-      <div className="mb-8 flex flex-col items-center gap-3">
-        <Image src="/brand/renova-icon.png" alt="Renova logo" width={56} height={56} className="rounded-2xl" priority />
+      <div className="relative z-10 mb-8 flex flex-col items-center gap-3">
+        <Image src="/brand/renova-icon.png" alt="Renova" width={56} height={56} className="rounded-2xl shadow-md" priority />
         <div className="text-center">
           <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Renova Enterprise Management System</p>
-          <p className="text-xs text-[hsl(var(--muted))]">Configure seu acesso</p>
+          <p className="text-xs text-[hsl(var(--muted))]">Primeiro acesso — defina sua senha</p>
         </div>
       </div>
 
-      {/* Card */}
-      <div className="surface-card-strong w-full max-w-sm">
-        <div className="p-7">
-
+      <div className="auth-glass-card relative z-10 w-full max-w-sm">
+        <div className="px-7 pb-7 pt-8 sm:px-8 sm:pb-8 sm:pt-9">
           <div className="mb-6 flex items-center gap-3">
-            <div
-              className="flex h-9 w-9 flex-shrink-0 items-center justify-center rounded-lg text-[hsl(var(--primary))]"
-              style={{ background: "hsl(var(--primary) / 0.1)" }}
-            >
-              <LockKeyhole size={17} />
+            <div className="flex h-10 w-10 shrink-0 items-center justify-center rounded-xl bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))]">
+              <LockKeyhole size={18} />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-[hsl(var(--foreground))]">Definir senha</h1>
-              <p className="text-xs text-[hsl(var(--muted))]">
-                Convite ou redefinição: defina sua senha para concluir o acesso.
+              <h1 className="text-lg font-bold text-[hsl(var(--foreground))]">Definir senha</h1>
+              <p className="text-xs leading-relaxed text-[hsl(var(--muted))]">
+                Crie uma senha forte. Nos próximos acessos você usará apenas ela com seu e-mail.
               </p>
             </div>
           </div>
 
           <form className="space-y-4" onSubmit={handleSubmit(onSubmit)}>
-
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[hsl(var(--foreground))]" htmlFor="password">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-[hsl(var(--foreground))]" htmlFor="password">
                 Nova senha
               </label>
               <input
                 id="password"
                 type="password"
                 autoComplete="new-password"
-                className="premium-input"
+                className="login-auth-input"
                 {...register("password")}
               />
               {errors.password ? (
@@ -103,15 +140,15 @@ export default function PrimeiroAcessoPage() {
               ) : null}
             </div>
 
-            <div className="space-y-1.5">
-              <label className="block text-xs font-medium text-[hsl(var(--foreground))]" htmlFor="confirmPassword">
+            <div className="space-y-2">
+              <label className="block text-sm font-medium text-[hsl(var(--foreground))]" htmlFor="confirmPassword">
                 Confirmar senha
               </label>
               <input
                 id="confirmPassword"
                 type="password"
                 autoComplete="new-password"
-                className="premium-input"
+                className="login-auth-input"
                 {...register("confirmPassword")}
               />
               {errors.confirmPassword ? (
@@ -119,35 +156,24 @@ export default function PrimeiroAcessoPage() {
               ) : null}
             </div>
 
-            {serverError ? (
-              <div className="alert-error">{serverError}</div>
-            ) : null}
+            {serverError ? <div className="alert-error text-sm">{serverError}</div> : null}
 
-            <button
-              type="submit"
-              disabled={isSubmitting}
-              className="premium-button w-full"
-            >
-              {isSubmitting ? "Salvando..." : "Definir senha"}
-              {!isSubmitting && <ArrowRight size={15} />}
+            <button type="submit" disabled={isSubmitting} className="login-auth-submit">
+              {isSubmitting ? "Salvando..." : "Definir senha e entrar"}
+              {!isSubmitting && <ArrowRight size={17} strokeWidth={2.25} />}
             </button>
-
           </form>
         </div>
 
-        <div
-          className="px-7 py-4"
-          style={{ borderTop: "1px solid hsl(var(--border))" }}
-        >
+        <div className="border-t border-[hsl(var(--border))] px-7 py-4 sm:px-8">
           <Link
             href="/login"
-            className="text-xs text-[hsl(var(--muted))] transition-colors hover:text-[hsl(var(--foreground))]"
+            className="text-xs font-medium text-[hsl(var(--muted))] transition hover:text-[hsl(var(--foreground))]"
           >
             Voltar para o login
           </Link>
         </div>
       </div>
-
     </main>
   )
 }

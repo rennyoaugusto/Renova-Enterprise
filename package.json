@@ -11,15 +11,15 @@
   },
   "repository": {
     "type": "git",
-    "url": "git+https://github.com/rennyoaugusto/Pilar-System.git"
+    "url": "git+https://github.com/rennyoaugusto/Renova-Enterprise.git"
   },
   "keywords": [],
   "author": "",
   "license": "ISC",
   "bugs": {
-    "url": "https://github.com/rennyoaugusto/Pilar-System/issues"
+    "url": "https://github.com/rennyoaugusto/Renova-Enterprise/issues"
   },
-  "homepage": "https://github.com/rennyoaugusto/Pilar-System#readme",
+  "homepage": "https://github.com/rennyoaugusto/Renova-Enterprise#readme",
   "dependencies": {
     "@hookform/resolvers": "^3.10.0",
     "@supabase/ssr": "^0.5.2",
@@ -32,6 +32,7 @@
     "react": "^18.3.1",
     "react-dom": "^18.3.1",
     "react-hook-form": "^7.72.1",
+    "resend": "^6.10.0",
     "tailwind-merge": "^2.6.1",
     "zod": "^3.25.76"
   },

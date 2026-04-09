@@ -1,19 +1,168 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
+import { Fragment, useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, CheckCircle2, ChevronRight } from "lucide-react"
+import { AlertTriangle, Check, CheckCircle2, Circle } from "lucide-react"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
 
-import { ETAPA_VALIDACAO, type EtapaValidacao, type ValidacaoDetalhe } from "@/types/validacao"
+import {
+  ETAPA_VALIDACAO,
+  type EtapaValidacao,
+  type ValidacaoDetalhe
+} from "@/types/validacao"
 
 const ETAPA_LABEL: Record<EtapaValidacao, string> = {
-  kickoff: "KickOff",
+  kickoff: "Kickoff",
   vistoria: "Vistoria",
   projeto: "Projeto",
   calculadora: "Calculadora",
-  envio_comercial: "Envio ao Comercial"
+  envio_comercial: "Envio ao comercial"
+}
+
+const ETAPA_RESUMO: Record<EtapaValidacao, string> = {
+  kickoff: "Alinhamento de escopo, premissas e registro da reunião inicial.",
+  vistoria: "Visita técnica e avaliação de viabilidade no local.",
+  projeto: "Detalhamento técnico e ajustes de escopo quando necessário.",
+  calculadora: "Consolidação de custos, equipamentos e mão de obra.",
+  envio_comercial: "Entrega do pacote técnico para o time comercial."
+}
+
+function etapaInfoFor(data: ValidacaoDetalhe, etapa: EtapaValidacao) {
+  return data.etapas.find((e) => e.etapa === etapa) ?? null
+}
+
+function EtapasFluxoVisual({ data }: { data: ValidacaoDetalhe }) {
+  const currentIndex = ETAPA_VALIDACAO.indexOf(data.etapa_atual)
+  const upcoming = ETAPA_VALIDACAO.slice(currentIndex + 1)
+  const flowClosed = ["aprovado", "enviado_implantacao", "cancelado"].includes(data.status)
+
+  return (
+    <section className="surface-card overflow-hidden p-0">
+      <div className="border-b border-[hsl(var(--border))] bg-[hsl(var(--background-soft)/0.45)] px-5 py-4 sm:px-6">
+        <p className="section-eyebrow">Fluxo de etapas</p>
+        <h3 className="mt-1 text-lg font-semibold tracking-tight text-[hsl(var(--foreground))]">
+          Progresso da validação
+        </h3>
+        <p className="mt-1 max-w-2xl text-sm text-[hsl(var(--muted))]">
+          Cada etapa avança o processo até o envio ao comercial. A etapa em destaque é onde o trabalho está
+          concentrado agora.
+        </p>
+      </div>
+
+      <div className="overflow-x-auto px-4 py-8 sm:px-6">
+        <div className="mx-auto flex min-w-[36rem] max-w-4xl items-center sm:min-w-0">
+          {ETAPA_VALIDACAO.map((etapa, index) => {
+            const info = etapaInfoFor(data, etapa)
+            const done = Boolean(info?.concluida)
+            const current = data.etapa_atual === etapa && !done
+
+            const etapaParaTraco = ETAPA_VALIDACAO[index]
+            const connectorDone =
+              index < ETAPA_VALIDACAO.length - 1 &&
+              etapaParaTraco !== undefined &&
+              Boolean(etapaInfoFor(data, etapaParaTraco)?.concluida)
+
+            return (
+              <Fragment key={etapa}>
+                <div className="flex w-[4.75rem] shrink-0 flex-col items-center text-center sm:w-[5.25rem]">
+                  <div
+                    className={`relative flex h-11 w-11 items-center justify-center rounded-full border-2 transition-shadow ${
+                      done
+                        ? "border-[hsl(var(--success))] bg-[hsl(var(--success))] text-white shadow-[0_0_0_4px_hsl(var(--success)/0.2)]"
+                        : current
+                          ? "border-[hsl(var(--primary))] bg-[hsl(var(--primary)/0.12)] text-[hsl(var(--primary))] shadow-[0_0_0_4px_hsl(var(--primary)/0.18)]"
+                          : "border-[hsl(var(--border))] bg-[hsl(var(--background-elevated))] text-[hsl(var(--muted))]"
+                    }`}
+                  >
+                    {done ? (
+                      <Check className="h-5 w-5" strokeWidth={2.5} aria-hidden />
+                    ) : current ? (
+                      <span className="h-2.5 w-2.5 rounded-full bg-[hsl(var(--primary))] shadow-sm" aria-hidden />
+                    ) : (
+                      <Circle className="h-4 w-4 opacity-40" strokeWidth={2} aria-hidden />
+                    )}
+                  </div>
+                  <p
+                    className={`mt-2.5 text-[0.7rem] font-semibold leading-tight sm:text-xs ${
+                      done || current ? "text-[hsl(var(--foreground))]" : "text-[hsl(var(--muted))]"
+                    }`}
+                  >
+                    {ETAPA_LABEL[etapa]}
+                  </p>
+                  {done ? (
+                    <span className="mt-0.5 text-[0.6rem] font-medium uppercase tracking-wider text-[hsl(var(--success))]">
+                      Ok
+                    </span>
+                  ) : current ? (
+                    <span className="mt-0.5 text-[0.6rem] font-medium uppercase tracking-wider text-[hsl(var(--primary))]">
+                      Atual
+                    </span>
+                  ) : (
+                    <span className="mt-0.5 text-[0.6rem] text-[hsl(var(--fg-subtle))]">—</span>
+                  )}
+                </div>
+
+                {index < ETAPA_VALIDACAO.length - 1 ? (
+                  <div
+                    className={`mx-0.5 h-[3px] min-w-[0.5rem] flex-1 rounded-full transition-colors ${
+                      connectorDone ? "bg-[hsl(var(--success))]" : "bg-[hsl(var(--border))]"
+                    }`}
+                    aria-hidden
+                  />
+                ) : null}
+              </Fragment>
+            )
+          })}
+        </div>
+      </div>
+
+      <div className="border-t border-[hsl(var(--border))] bg-[hsl(var(--background-soft)/0.35)] px-5 py-5 sm:px-6">
+        <p className="text-[0.65rem] font-bold uppercase tracking-[0.12em] text-[hsl(var(--muted))]">
+          Próximas fases
+        </p>
+
+        {flowClosed ? (
+          <p className="mt-3 text-sm text-[hsl(var(--muted))]">
+            {data.status === "cancelado"
+              ? "Esta validação foi cancelada — o fluxo não seguirá adiante."
+              : "Fluxo técnico concluído nesta validação."}
+          </p>
+        ) : upcoming.length === 0 ? (
+          <div className="mt-3 flex items-start gap-3 rounded-xl border border-[hsl(var(--success)/0.25)] bg-[hsl(var(--success)/0.08)] p-4">
+            <CheckCircle2 className="mt-0.5 h-5 w-5 shrink-0 text-[hsl(var(--success))]" aria-hidden />
+            <div>
+              <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Última etapa do fluxo</p>
+              <p className="mt-1 text-sm text-[hsl(var(--muted))]">
+                Após concluir <strong className="text-[hsl(var(--foreground))]">{ETAPA_LABEL[data.etapa_atual]}</strong>,
+                use &quot;Avançar etapa&quot; para encerrar o fluxo técnico ou seguir conforme as regras do processo.
+              </p>
+            </div>
+          </div>
+        ) : (
+          <ol className="mt-4 space-y-3">
+            {upcoming.map((etapa, order) => (
+              <li
+                key={etapa}
+                className="flex gap-4 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background-elevated))] p-4 transition-colors hover:border-[hsl(var(--primary)/0.25)]"
+              >
+                <span
+                  className="flex h-9 w-9 shrink-0 items-center justify-center rounded-lg bg-[hsl(var(--primary)/0.12)] text-sm font-bold tabular-nums text-[hsl(var(--primary))]"
+                  aria-hidden
+                >
+                  {order + 1}
+                </span>
+                <div className="min-w-0 flex-1">
+                  <p className="font-semibold text-[hsl(var(--foreground))]">{ETAPA_LABEL[etapa]}</p>
+                  <p className="mt-1 text-sm leading-relaxed text-[hsl(var(--muted))]">{ETAPA_RESUMO[etapa]}</p>
+                </div>
+              </li>
+            ))}
+          </ol>
+        )}
+      </div>
+    </section>
+  )
 }
 
 export function ValidacaoDetalheWorkflow({ id }: { id: string }) {
@@ -351,34 +500,7 @@ export function ValidacaoDetalheWorkflow({ id }: { id: string }) {
         </div>
       </section>
 
-      <section className="surface-card p-5">
-        <p className="mb-4 section-eyebrow">Fluxo de etapas</p>
-        <div className="flex flex-wrap items-center gap-2">
-          {ETAPA_VALIDACAO.map((etapa, index) => {
-            const etapaInfo = data.etapas.find((item) => item.etapa === etapa)
-            const isCurrent = data.etapa_atual === etapa
-            return (
-              <div key={etapa} className="inline-flex items-center gap-2">
-                <div
-                  className={`rounded-lg border px-3 py-2 text-xs ${
-                    etapaInfo?.concluida
-                      ? "border-[hsl(var(--success)/0.3)] bg-[hsl(var(--success)/0.1)] text-[hsl(var(--success))]"
-                      : isCurrent
-                        ? "border-[hsl(var(--primary)/0.3)] bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]"
-                        : "border-[hsl(var(--border))] text-[hsl(var(--muted))]"
-                  }`}
-                >
-                  <div className="flex items-center gap-1.5">
-                    {etapaInfo?.concluida ? <CheckCircle2 size={14} /> : null}
-                    {ETAPA_LABEL[etapa]}
-                  </div>
-                </div>
-                {index < ETAPA_VALIDACAO.length - 1 ? <ChevronRight size={14} className="text-[hsl(var(--muted))]" /> : null}
-              </div>
-            )
-          })}
-        </div>
-      </section>
+      <EtapasFluxoVisual data={data} />
 
       <section className="surface-card p-5">
         <div className="mb-4 flex items-center justify-between">

@@ -29,17 +29,20 @@ async function purgeUserAndDeleteAuth(
     return { error: `Notificações: ${e2.message}` }
   }
 
-  const { error: e3 } = await supabaseAdmin.from("revisoes").delete().eq("solicitante_id", userId)
+  const { error: e3 } = await supabaseAdmin.from("validacao_revisoes").delete().eq("solicitante_id", userId)
   if (e3) {
     return { error: `Revisões: ${e3.message}` }
   }
 
-  const { error: e4 } = await supabaseAdmin.from("anexos").delete().eq("enviado_por", userId)
+  const { error: e4 } = await supabaseAdmin.from("validacao_anexos").delete().eq("enviado_por", userId)
   if (e4) {
     return { error: `Anexos: ${e4.message}` }
   }
 
-  const { error: e5 } = await supabaseAdmin.from("etapas").update({ concluida_por: null }).eq("concluida_por", userId)
+  const { error: e5 } = await supabaseAdmin
+    .from("validacao_etapas")
+    .update({ concluida_por: null })
+    .eq("concluida_por", userId)
   if (e5) {
     return { error: `Etapas: ${e5.message}` }
   }

@@ -1,7 +1,9 @@
 import { NextResponse } from "next/server"
 
+import { generateTemporaryPassword } from "@/lib/auth/generate-temp-password"
 import { getCurrentUserWithRole } from "@/lib/auth"
 import { ADMIN_ROLES } from "@/lib/constants"
+import { sendWelcomeInviteViaResend } from "@/lib/email/send-invite-via-resend"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { createClient } from "@/lib/supabase/server"
 import { inviteUserSchema } from "@/lib/validations"
@@ -94,36 +96,35 @@ export async function POST(request: Request) {
     return NextResponse.json({ error: "NEXT_PUBLIC_APP_URL não configurada" }, { status: 500 })
   }
 
-  const { nome, username, email, papel } = parsed.data
+  const { nome, sobrenome, username, email, papel } = parsed.data
+  const nomeCompleto = `${nome.trim()} ${sobrenome.trim()}`.trim()
+  const temporaryPassword = generateTemporaryPassword()
 
-  const base = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, "")
-  const inviteRedirect = `${base}/api/auth/callback?next=${encodeURIComponent("/primeiro-acesso")}`
-
-  const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: inviteRedirect,
-    data: { nome, username }
+  const { data: created, error: createError } = await supabaseAdmin.auth.admin.createUser({
+    email,
+    password: temporaryPassword,
+    email_confirm: true,
+    user_metadata: {
+      nome: nomeCompleto,
+      username,
+      primeiro_acesso: true
+    }
   })
 
-  if (inviteError) {
-    const status = inviteError.status ?? 400
-    if (status === 429) {
-      return NextResponse.json(
-        { error: "Limite de envio de e-mails excedido no Supabase. Aguarde alguns minutos e tente novamente." },
-        { status: 429 }
-      )
-    }
-    return NextResponse.json({ error: inviteError.message }, { status })
+  if (createError) {
+    const status = createError.status ?? 400
+    return NextResponse.json({ error: createError.message }, { status })
   }
 
-  const invitedUserId = inviteData.user?.id
-  if (!invitedUserId) {
-    return NextResponse.json({ error: "Convite criado sem ID de usuário retornado pelo Auth." }, { status: 500 })
+  const newUserId = created.user?.id
+  if (!newUserId) {
+    return NextResponse.json({ error: "Usuário criado sem ID retornado pelo Auth." }, { status: 500 })
   }
 
-  const profileUpdateQuery = supabaseAdmin.from("profiles").upsert(
+  const { error: profileError } = await supabaseAdmin.from("profiles").upsert(
     {
-      id: invitedUserId,
-      nome,
+      id: newUserId,
+      nome: nomeCompleto,
       email,
       papel,
       ativo: true
@@ -131,17 +132,34 @@ export async function POST(request: Request) {
     { onConflict: "id" }
   )
 
-  const { error: updateError } = await profileUpdateQuery
-
-  if (updateError) {
-    return NextResponse.json({ error: "Usuário convidado, mas perfil não foi atualizado" }, { status: 500 })
+  if (profileError) {
+    await supabaseAdmin.auth.admin.deleteUser(newUserId)
+    return NextResponse.json({ error: "Perfil não pôde ser criado. Usuário removido — tente novamente." }, { status: 500 })
   }
 
-  if (invitedUserId && username) {
-    await supabaseAdmin.auth.admin.updateUserById(invitedUserId, {
-      user_metadata: { nome, username }
-    })
+  const base = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, "")
+  const loginUrl = `${base}/login`
+
+  const emailResult = await sendWelcomeInviteViaResend(email, {
+    recipientName: nomeCompleto,
+    emailLogin: email,
+    username,
+    temporaryPassword,
+    loginUrl
+  })
+
+  if (!emailResult.ok) {
+    return NextResponse.json(
+      {
+        ok: true,
+        emailSent: false,
+        warning:
+          "Conta criada, mas o e-mail não foi enviado. Sem domínio verificado no Resend, só é permitido enviar para o e-mail da sua conta Resend ou para endereços de teste (ex.: delivered@resend.dev). Veja o motivo abaixo.",
+        emailError: emailResult.error
+      },
+      { status: 201 }
+    )
   }
 
-  return NextResponse.json({ ok: true }, { status: 201 })
+  return NextResponse.json({ ok: true, emailSent: true }, { status: 201 })
 }

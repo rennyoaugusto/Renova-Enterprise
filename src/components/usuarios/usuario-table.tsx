@@ -129,6 +129,7 @@ export function UsuarioTable() {
   const [isDeleting, setIsDeleting] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
   const [successMessage, setSuccessMessage] = useState<string | null>(null)
+  const [passwordResetSuccess, setPasswordResetSuccess] = useState<string | null>(null)
 
   async function loadUsers(mode: "initial" | "refresh" = "initial") {
     const isRefresh = mode === "refresh"
@@ -179,6 +180,7 @@ export function UsuarioTable() {
 
   function openEditModal(user: Usuario) {
     setSuccessMessage(null)
+    setPasswordResetSuccess(null)
     setEditingUser({
       ...user,
       nomeCompleto: user.nome,
@@ -246,6 +248,7 @@ export function UsuarioTable() {
     setIsSendingReset(true)
     setError(null)
     setSuccessMessage(null)
+    setPasswordResetSuccess(null)
 
     try {
       const response = await fetch(`/api/usuarios/${editingUser.id}/enviar-redefinicao-senha`, {
@@ -259,7 +262,9 @@ export function UsuarioTable() {
         return
       }
 
-      setSuccessMessage(typeof body.message === "string" ? body.message : "E-mail de redefinição enviado.")
+      setPasswordResetSuccess(
+        typeof body.message === "string" && body.message.trim() ? body.message.trim() : "E-mail de redefinição enviado."
+      )
     } finally {
       setIsSendingReset(false)
     }
@@ -680,8 +685,7 @@ export function UsuarioTable() {
                 <section className="rounded-xl border border-dashed border-[hsl(var(--border))] bg-[hsl(var(--background-soft))] p-4 sm:p-5">
                   <h4 className="text-sm font-semibold text-[hsl(var(--foreground))]">Senha</h4>
                   <p className="mt-0.5 text-xs text-[hsl(var(--muted))]">
-                    Envia um e-mail com link seguro para o usuário definir uma nova senha (requer Resend configurado no
-                    servidor).
+                    Envia um e-mail com link seguro (Supabase) para o usuário definir uma nova senha.
                   </p>
                   <button
                     type="button"
@@ -692,6 +696,11 @@ export function UsuarioTable() {
                     <KeyRound size={16} />
                     {isSendingReset ? "Enviando e-mail..." : "Enviar redefinição de senha"}
                   </button>
+                  {passwordResetSuccess ? (
+                    <div className="alert-success mt-3 text-sm" role="status">
+                      {passwordResetSuccess}
+                    </div>
+                  ) : null}
                 </section>
               </div>
             </div>
