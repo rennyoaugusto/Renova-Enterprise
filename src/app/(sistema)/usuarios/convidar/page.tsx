@@ -21,7 +21,7 @@ export default async function ConvidarUsuarioPage() {
     <main className="mx-auto flex min-h-full w-full max-w-2xl flex-col gap-6 px-4 py-8">
       <PageHeader
         title="Convidar usuário"
-        description="Envia convite para primeiro acesso no PILAR."
+        description="Envia convite para primeiro acesso no Renova Enterprise Management System."
         actions={
           <Link href="/usuarios" className="premium-button-secondary text-sm">
             Voltar

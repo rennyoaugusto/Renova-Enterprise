@@ -21,7 +21,7 @@ export function Header() {
             className="text-[11px] uppercase tracking-[0.18em]"
             style={{ color: "hsl(var(--muted))" }}
           >
-            Sistema PILAR
+            Renova Enterprise Management System
           </p>
           <p
             className="text-sm font-semibold leading-tight"

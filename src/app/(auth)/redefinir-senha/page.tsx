@@ -2,11 +2,13 @@
 
 import { useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { ArrowRight, MailCheck } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
 import { useForm } from "react-hook-form"
 
 import { ThemeToggle } from "@/components/shared/theme-toggle"
+import { buildAuthCallbackRecoveryUrl } from "@/lib/app-url"
 import { createClient } from "@/lib/supabase/client"
 import { resetPasswordRequestSchema, type ResetPasswordRequestInput } from "@/lib/validations"
 
@@ -32,10 +34,15 @@ export default function RedefinirSenhaPage() {
       return
     }
 
-    const supabase = createClient()
-    const redirectTo =
-      typeof window !== "undefined" ? `${window.location.origin}/primeiro-acesso` : undefined
+    const redirectTo = buildAuthCallbackRecoveryUrl()
+    if (!redirectTo) {
+      setServerError(
+        "URL do app não configurada. Defina NEXT_PUBLIC_APP_URL no Vercel (ex.: https://pilar-system-8ywy.vercel.app) e inclua /api/auth/callback nas Redirect URLs do Supabase."
+      )
+      return
+    }
 
+    const supabase = createClient()
     const { error } = await supabase.auth.resetPasswordForEmail(values.email, { redirectTo })
 
     if (error) {
@@ -55,17 +62,9 @@ export default function RedefinirSenhaPage() {
 
       {/* Brand */}
       <div className="mb-8 flex flex-col items-center gap-3">
-        <div
-          className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
-          style={{
-            background: "hsl(var(--primary))",
-            boxShadow: "0 8px 28px hsl(var(--primary) / 0.4)"
-          }}
-        >
-          <span className="text-xl font-bold tracking-tight">P</span>
-        </div>
+        <Image src="/brand/renova-icon.png" alt="Renova logo" width={56} height={56} className="rounded-2xl" priority />
         <div className="text-center">
-          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Sistema PILAR</p>
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Renova Enterprise Management System</p>
           <p className="text-xs text-[hsl(var(--muted))]">Recuperação de senha</p>
         </div>
       </div>

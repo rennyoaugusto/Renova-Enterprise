@@ -2,6 +2,7 @@
 
 import { useEffect, useState } from "react"
 import Link from "next/link"
+import Image from "next/image"
 import { useRouter } from "next/navigation"
 import { ArrowRight, LockKeyhole } from "lucide-react"
 import { zodResolver } from "@hookform/resolvers/zod"
@@ -58,17 +59,9 @@ export default function PrimeiroAcessoPage() {
 
       {/* Brand */}
       <div className="mb-8 flex flex-col items-center gap-3">
-        <div
-          className="flex h-12 w-12 items-center justify-center rounded-2xl text-white"
-          style={{
-            background: "hsl(var(--primary))",
-            boxShadow: "0 8px 28px hsl(var(--primary) / 0.4)"
-          }}
-        >
-          <span className="text-xl font-bold tracking-tight">P</span>
-        </div>
+        <Image src="/brand/renova-icon.png" alt="Renova logo" width={56} height={56} className="rounded-2xl" priority />
         <div className="text-center">
-          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Sistema PILAR</p>
+          <p className="text-sm font-semibold text-[hsl(var(--foreground))]">Renova Enterprise Management System</p>
           <p className="text-xs text-[hsl(var(--muted))]">Configure seu acesso</p>
         </div>
       </div>
@@ -85,8 +78,10 @@ export default function PrimeiroAcessoPage() {
               <LockKeyhole size={17} />
             </div>
             <div>
-              <h1 className="text-lg font-semibold text-[hsl(var(--foreground))]">Primeiro acesso</h1>
-              <p className="text-xs text-[hsl(var(--muted))]">Defina sua senha para ativar o acesso.</p>
+              <h1 className="text-lg font-semibold text-[hsl(var(--foreground))]">Definir senha</h1>
+              <p className="text-xs text-[hsl(var(--muted))]">
+                Convite ou redefinição: defina sua senha para concluir o acesso.
+              </p>
             </div>
           </div>
 

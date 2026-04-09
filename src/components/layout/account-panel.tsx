@@ -5,6 +5,7 @@ import { ChevronRight, KeyRound, LogOut, Monitor, Moon, Sun, X } from "lucide-re
 import { useRouter } from "next/navigation"
 
 import { useTheme } from "@/components/shared/theme-provider"
+import { buildAuthCallbackRecoveryUrl } from "@/lib/app-url"
 import { ROLE_LABELS } from "@/lib/constants"
 import { createClient } from "@/lib/supabase/client"
 import type { UserRole } from "@/types/usuario"
@@ -43,16 +44,18 @@ export function AccountPanel({ userName, userEmail, role }: AccountPanelProps) {
   const [isLoggingOut, setIsLoggingOut] = useState(false)
   const [isSendingReset, setIsSendingReset] = useState(false)
   const [feedback, setFeedback] = useState<string | null>(null)
-  const initials = useMemo(
-    () =>
-      userName
-        .split(" ")
-        .slice(0, 2)
-        .map((name) => name[0])
-        .join("")
-        .toUpperCase(),
-    [userName]
-  )
+  const initials = useMemo(() => {
+    const parts = userName.trim().split(/\s+/).filter(Boolean)
+    if (parts.length === 0) {
+      return "?"
+    }
+    if (parts.length === 1) {
+      return parts[0]!.slice(0, 2).toUpperCase()
+    }
+    const first = parts[0]!
+    const last = parts[parts.length - 1]!
+    return `${first.charAt(0)}${last.charAt(0)}`.toUpperCase()
+  }, [userName])
   const username = useMemo(() => usernameFromName(userName) || userEmail.split("@")[0] || "", [userEmail, userName])
 
   async function handleResetPassword() {
@@ -60,8 +63,12 @@ export function AccountPanel({ userName, userEmail, role }: AccountPanelProps) {
     setIsSendingReset(true)
 
     try {
+      const redirectTo = buildAuthCallbackRecoveryUrl()
+      if (!redirectTo) {
+        setFeedback("Configure NEXT_PUBLIC_APP_URL no ambiente para enviar o link de redefinição.")
+        return
+      }
       const supabase = createClient()
-      const redirectTo = `${window.location.origin}/primeiro-acesso`
       const { error } = await supabase.auth.resetPasswordForEmail(userEmail, { redirectTo })
 
       if (error) {
@@ -101,8 +108,12 @@ export function AccountPanel({ userName, userEmail, role }: AccountPanelProps) {
           {initials}
         </div>
         <div className="min-w-0 flex-1 text-left">
-          <p className="truncate text-sm font-semibold text-[hsl(var(--foreground))]">{userName}</p>
-          <p className="text-xs uppercase tracking-[0.12em] text-[hsl(var(--muted))]">Minha conta</p>
+          <p className="break-words text-sm font-semibold leading-snug text-[hsl(var(--foreground))]">
+            {userName}
+          </p>
+          <p className="whitespace-nowrap text-[11px] font-semibold uppercase tracking-[0.14em] text-[hsl(var(--muted))]">
+            Minha conta
+          </p>
         </div>
         <ChevronRight size={18} className="text-[hsl(var(--muted))]" />
       </button>
@@ -238,10 +249,9 @@ export function AccountPanel({ userName, userEmail, role }: AccountPanelProps) {
 
               {activeTab === "sobre" ? (
                 <div className="surface-card p-4">
-                  <p className="text-base font-semibold text-[hsl(var(--foreground))]">Sistema PILAR</p>
+                  <p className="text-base font-semibold text-[hsl(var(--foreground))]">Renova Enterprise Management System</p>
                   <p className="mt-2 text-sm text-[hsl(var(--muted))]">
-                    Painel de validação comercial com controle de acesso por perfil, auditoria e fluxos de
-                    aprovação.
+                    Plataforma corporativa para validação comercial, governança de processos e gestão por perfis.
                   </p>
                 </div>
               ) : null}

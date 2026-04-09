@@ -25,7 +25,7 @@ export function NavItem({ href, label }: NavItemProps) {
   return (
     <Link
       href={href}
-      className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-sm font-medium transition-all ${
+      className={`flex items-center gap-2.5 rounded-md px-2.5 py-2 text-[0.9375rem] font-medium transition-all ${
         active
           ? "text-[hsl(var(--primary))]"
           : "text-[hsl(var(--muted))] hover:text-[hsl(var(--foreground))]"

@@ -59,5 +59,11 @@ export async function middleware(request: NextRequest) {
 }
 
 export const config = {
-  matcher: ["/((?!_next/static|_next/image|favicon.ico).*)"]
+  matcher: [
+    /*
+     * Evita passar middleware em assets do Next e arquivos estáticos (incl. .css em /_next/static),
+     * o que em alguns ambientes reduz respostas inesperadas durante HMR.
+     */
+    "/((?!_next/static|_next/image|favicon.ico|.*\\.(?:svg|png|jpg|jpeg|gif|webp|ico|css|woff2?)$).*)"
+  ]
 }

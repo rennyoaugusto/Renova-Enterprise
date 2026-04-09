@@ -96,8 +96,11 @@ export async function POST(request: Request) {
 
   const { nome, username, email, papel } = parsed.data
 
+  const base = process.env.NEXT_PUBLIC_APP_URL.trim().replace(/\/$/, "")
+  const inviteRedirect = `${base}/api/auth/callback?next=${encodeURIComponent("/primeiro-acesso")}`
+
   const { data: inviteData, error: inviteError } = await supabaseAdmin.auth.admin.inviteUserByEmail(email, {
-    redirectTo: `${process.env.NEXT_PUBLIC_APP_URL}/primeiro-acesso`,
+    redirectTo: inviteRedirect,
     data: { nome, username }
   })
 

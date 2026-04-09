@@ -1,11 +1,20 @@
 "use client"
 
-import { useEffect, useMemo, useState } from "react"
 import Link from "next/link"
-import { AlertTriangle, Search } from "lucide-react"
+import { useEffect, useMemo, useState } from "react"
 import { formatDistanceToNow } from "date-fns"
 import { ptBR } from "date-fns/locale"
+import {
+  AlertTriangle,
+  ChevronDown,
+  ChevronRight,
+  ClipboardList,
+  RefreshCw,
+  Search,
+  SlidersHorizontal
+} from "lucide-react"
 
+import { Loading } from "@/components/shared/loading"
 import { ETAPA_VALIDACAO, STATUS_VALIDACAO, type EtapaValidacao, type ValidacaoListItem } from "@/types/validacao"
 
 const STATUS_LABEL: Record<(typeof STATUS_VALIDACAO)[number], string> = {
@@ -34,6 +43,21 @@ const ETAPA_LABEL: Record<EtapaValidacao, string> = {
   envio_comercial: "Envio comercial"
 }
 
+type SlaStatus = { key: "no_prazo" | "proximo" | "estourado"; label: string; tagClass: string }
+
+type EnrichedValidacao = ValidacaoListItem & {
+  valorTotal: number | null
+  margem: number | null
+  progress: number
+  sla: SlaStatus
+  maoObra: number | null
+  recorrente: number | null
+}
+
+type ValidacoesListProps = {
+  canRegister?: boolean
+}
+
 function formatCurrency(value: number | null) {
   if (value === null) return "—"
   return new Intl.NumberFormat("pt-BR", { style: "currency", currency: "BRL" }).format(value)
@@ -44,8 +68,6 @@ function getProgressFromStep(step: EtapaValidacao) {
   return Math.round(((idx + 1) / ETAPA_VALIDACAO.length) * 100)
 }
 
-type SlaStatus = { key: "no_prazo" | "proximo" | "estourado"; label: string; tagClass: string }
-
 function getSlaStatus(updatedAt: string): SlaStatus {
   const hoursDiff = Math.floor((Date.now() - new Date(updatedAt).getTime()) / (1000 * 60 * 60))
   if (hoursDiff < 48) return { key: "no_prazo", label: "No prazo", tagClass: "tag tag-success" }
@@ -53,9 +75,31 @@ function getSlaStatus(updatedAt: string): SlaStatus {
   return { key: "estourado", label: "Estourado", tagClass: "tag tag-danger" }
 }
 
-export function ValidacoesList() {
+function margemClass(margem: number | null) {
+  if (margem === null) return "text-[hsl(var(--muted))]"
+  if (margem <= 0) return "text-[hsl(var(--danger))] font-medium"
+  if (margem < 15) return "text-[hsl(var(--warning))] font-medium"
+  return "text-[hsl(var(--success))] font-medium"
+}
+
+function StatCard({ label, value, hint }: { label: string; value: number; hint?: string }) {
+  return (
+    <div className="surface-card flex flex-col gap-0.5 rounded-xl px-4 py-3.5 sm:px-5 sm:py-4">
+      <span className="text-[0.65rem] font-semibold uppercase tracking-[0.08em] text-[hsl(var(--muted))]">
+        {label}
+      </span>
+      <span className="text-2xl font-semibold tabular-nums tracking-tight text-[hsl(var(--foreground))]">
+        {value}
+      </span>
+      {hint ? <span className="text-xs text-[hsl(var(--muted))]">{hint}</span> : null}
+    </div>
+  )
+}
+
+export function ValidacoesList({ canRegister = false }: ValidacoesListProps) {
   const [items, setItems] = useState<ValidacaoListItem[]>([])
   const [loading, setLoading] = useState(true)
+  const [refreshing, setRefreshing] = useState(false)
   const [error, setError] = useState<string | null>(null)
   const [search, setSearch] = useState("")
   const [statusFilter, setStatusFilter] = useState<"todos" | (typeof STATUS_VALIDACAO)[number]>("todos")
@@ -66,27 +110,47 @@ export function ValidacoesList() {
   const [periodoFilter, setPeriodoFilter] = useState<"todos" | "7" | "30" | "90">("todos")
   const [slaFilter, setSlaFilter] = useState<"todos" | "no_prazo" | "proximo" | "estourado">("todos")
   const [sortBy, setSortBy] = useState<"data" | "sla" | "valor" | "etapa">("data")
+  const [advancedOpen, setAdvancedOpen] = useState(false)
 
-  async function loadData() {
-    setLoading(true)
+  async function loadData(mode: "initial" | "refresh" = "initial") {
+    if (mode === "refresh") {
+      setRefreshing(true)
+    } else {
+      setLoading(true)
+    }
     setError(null)
 
-    const response = await fetch("/api/validacoes", { cache: "no-store" })
-    const body = await response.json()
+    try {
+      const response = await fetch("/api/validacoes", { cache: "no-store" })
+      const body = await response.json()
 
-    if (!response.ok) {
-      setError(body.error ?? "Falha ao carregar validações")
+      if (!response.ok) {
+        setError(body.error ?? "Falha ao carregar validações")
+        return
+      }
+
+      setItems(body.data ?? [])
+    } finally {
       setLoading(false)
-      return
+      setRefreshing(false)
     }
-
-    setItems(body.data ?? [])
-    setLoading(false)
   }
 
   useEffect(() => {
-    void loadData()
+    void loadData("initial")
   }, [])
+
+  function resetFilters() {
+    setSearch("")
+    setStatusFilter("todos")
+    setEtapaFilter("todas")
+    setAnalistaFilter("todos")
+    setVendedorFilter("todos")
+    setGrupoFilter("todos")
+    setPeriodoFilter("todos")
+    setSlaFilter("todos")
+    setSortBy("data")
+  }
 
   const resumo = useMemo(() => {
     const total = items.length
@@ -139,9 +203,28 @@ export function ValidacoesList() {
       const sla = getSlaStatus(item.atualizado_em)
       const slaMatch = slaFilter === "todos" || sla.key === slaFilter
 
-      return searchMatch && statusMatch && etapaMatch && analistaMatch && vendedorMatch && grupoMatch && periodoMatch && slaMatch
+      return (
+        searchMatch &&
+        statusMatch &&
+        etapaMatch &&
+        analistaMatch &&
+        vendedorMatch &&
+        grupoMatch &&
+        periodoMatch &&
+        slaMatch
+      )
     })
-  }, [items, search, statusFilter, etapaFilter, analistaFilter, vendedorFilter, grupoFilter, periodoFilter, slaFilter])
+  }, [
+    items,
+    search,
+    statusFilter,
+    etapaFilter,
+    analistaFilter,
+    vendedorFilter,
+    grupoFilter,
+    periodoFilter,
+    slaFilter
+  ])
 
   const sortedItems = useMemo(() => {
     const cloned = [...filteredItems]
@@ -166,256 +249,375 @@ export function ValidacoesList() {
     return cloned
   }, [filteredItems, sortBy])
 
+  const enrichedItems = useMemo((): EnrichedValidacao[] => {
+    return sortedItems.map((item) => {
+      const valorTotal = item.modelo_comercial === "locacao" ? item.locacao_valor_total : item.venda_valor_total
+      const custo = item.custo_rev_total && item.custo_rev_total > 0 ? item.custo_rev_total : item.custo_prev_total
+      const margem = valorTotal && custo ? ((valorTotal - custo) / valorTotal) * 100 : null
+      return {
+        ...item,
+        valorTotal,
+        margem,
+        progress: getProgressFromStep(item.etapa_atual),
+        sla: getSlaStatus(item.atualizado_em),
+        maoObra: item.venda_valor_mao_obra,
+        recorrente: item.modelo_comercial === "locacao" ? item.locacao_valor_mensal : null
+      }
+    })
+  }, [sortedItems])
+
+  const statusChips: { id: "todos" | (typeof STATUS_VALIDACAO)[number]; label: string }[] = [
+    { id: "todos", label: "Todos" },
+    ...STATUS_VALIDACAO.map((s) => ({ id: s, label: STATUS_LABEL[s] }))
+  ]
+
+  const isFilteredEmpty = !loading && items.length > 0 && sortedItems.length === 0
+  const isTotallyEmpty = !loading && items.length === 0
+
   return (
-    <section className="surface-card p-6">
-      {/* Summary cards */}
-      <div className="mb-6 grid gap-3 md:grid-cols-4">
-        {[
-          { label: "Total", value: resumo.total },
-          { label: "Aguardando comercial", value: resumo.aguardando },
-          { label: "Em revisão", value: resumo.emRevisao },
-          { label: "Aprovadas", value: resumo.aprovadas }
-        ].map((card) => (
-          <div key={card.label} className="surface-card p-4">
-            <p className="text-xs" style={{ color: "hsl(var(--muted))" }}>{card.label}</p>
-            <p className="mt-1.5 text-2xl font-semibold tracking-tight" style={{ color: "hsl(var(--foreground))" }}>
-              {card.value}
-            </p>
-          </div>
-        ))}
+    <>
+      <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
+        <StatCard label="Total" value={resumo.total} hint="Validações na base" />
+        <StatCard label="Aguardando comercial" value={resumo.aguardando} hint="Próximo passo comercial" />
+        <StatCard label="Em revisão" value={resumo.emRevisao} hint="Ajustes pendentes" />
+        <StatCard label="Aprovadas" value={resumo.aprovadas} hint="Status aprovado" />
       </div>
 
-      {/* Filters */}
-      <div className="mb-5 grid gap-3 lg:grid-cols-4">
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Pesquisar</label>
-          <div className="relative">
-            <Search size={14} className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2" style={{ color: "hsl(var(--muted))" }} />
-            <input
-              value={search}
-              onChange={(event) => setSearch(event.target.value)}
-              placeholder="Cliente, vendedor ou analista..."
-              className="premium-input pl-9"
-            />
-          </div>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Status</label>
-          <select
-            value={statusFilter}
-            onChange={(event) => setStatusFilter(event.target.value as "todos" | (typeof STATUS_VALIDACAO)[number])}
-            className="premium-input"
-          >
-            <option value="todos">Todos</option>
-            {STATUS_VALIDACAO.map((status) => (
-              <option key={status} value={status}>{STATUS_LABEL[status]}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Etapa</label>
-          <select
-            value={etapaFilter}
-            onChange={(event) => setEtapaFilter(event.target.value as "todas" | EtapaValidacao)}
-            className="premium-input"
-          >
-            <option value="todas">Todas</option>
-            {ETAPA_VALIDACAO.map((etapa) => (
-              <option key={etapa} value={etapa}>{ETAPA_LABEL[etapa]}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Analista</label>
-          <select value={analistaFilter} onChange={(event) => setAnalistaFilter(event.target.value)} className="premium-input">
-            <option value="todos">Todos</option>
-            {analistaOptions.map((option) => (
-              <option key={option.id} value={option.id}>{option.nome}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Vendedor</label>
-          <select value={vendedorFilter} onChange={(event) => setVendedorFilter(event.target.value)} className="premium-input">
-            <option value="todos">Todos</option>
-            {vendedorOptions.map((option) => (
-              <option key={option.id} value={option.id}>{option.nome}</option>
-            ))}
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Grupo projeto</label>
-          <select value={grupoFilter} onChange={(event) => setGrupoFilter(event.target.value)} className="premium-input">
-            <option value="todos">Todos</option>
-            <option value="portaria_remota">Portaria remota</option>
-            <option value="sistema_tecnico">Sistema técnico</option>
-            <option value="outros">Outros</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Período</label>
-          <select
-            value={periodoFilter}
-            onChange={(event) => setPeriodoFilter(event.target.value as "todos" | "7" | "30" | "90")}
-            className="premium-input"
-          >
-            <option value="todos">Todos</option>
-            <option value="7">Últimos 7 dias</option>
-            <option value="30">Últimos 30 dias</option>
-            <option value="90">Últimos 90 dias</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>SLA</label>
-          <select
-            value={slaFilter}
-            onChange={(event) => setSlaFilter(event.target.value as "todos" | "no_prazo" | "proximo" | "estourado")}
-            className="premium-input"
-          >
-            <option value="todos">Todos</option>
-            <option value="no_prazo">No prazo</option>
-            <option value="proximo">Próximo do limite</option>
-            <option value="estourado">Estourado</option>
-          </select>
-        </div>
-
-        <div>
-          <label className="mb-1 block text-xs font-medium" style={{ color: "hsl(var(--muted))" }}>Ordenação</label>
-          <select
-            value={sortBy}
-            onChange={(event) => setSortBy(event.target.value as "data" | "sla" | "valor" | "etapa")}
-            className="premium-input"
-          >
-            <option value="data">Data atualização</option>
-            <option value="sla">SLA (mais urgente)</option>
-            <option value="valor">Valor total</option>
-            <option value="etapa">Etapa atual</option>
-          </select>
-        </div>
-
-        <div className="flex items-end">
-          <button type="button" onClick={() => void loadData()} className="premium-button w-full">
-            Atualizar lista
-          </button>
-        </div>
-      </div>
-
-      {error ? (
-        <div className="alert-error mb-4 flex items-center gap-2">
-          <AlertTriangle size={14} />
-          {error}
-        </div>
-      ) : null}
-
-      {loading ? (
-        <div className="space-y-3 py-2">
-          {Array.from({ length: 5 }).map((_, i) => (
-            <div key={i} className="flex gap-4">
-              <div className="skeleton h-4 w-36" />
-              <div className="skeleton h-4 w-24" />
-              <div className="skeleton h-4 w-24" />
-              <div className="skeleton h-5 w-28 rounded-full" />
-              <div className="skeleton h-4 flex-1" />
+      <section className="surface-card overflow-hidden rounded-xl">
+        <div className="border-b border-[hsl(var(--border))] bg-[hsl(var(--background-soft))] px-4 py-4 sm:px-5">
+          <div className="flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between">
+            <div className="min-w-0 flex-1">
+              <label className="mb-1.5 block text-xs font-medium text-[hsl(var(--muted))]">Pesquisar</label>
+              <div className="relative max-w-xl">
+                <Search
+                  size={16}
+                  className="pointer-events-none absolute left-3 top-1/2 -translate-y-1/2 text-[hsl(var(--muted))]"
+                />
+                <input
+                  value={search}
+                  onChange={(event) => setSearch(event.target.value)}
+                  placeholder="Cliente, vendedor ou analista..."
+                  className="premium-input pl-10"
+                  autoComplete="off"
+                />
+              </div>
             </div>
-          ))}
-        </div>
-      ) : sortedItems.length === 0 ? (
-        <div className="flex items-center gap-2 rounded-xl px-4 py-3 text-sm" style={{ border: "1px solid hsl(var(--border))", background: "hsl(var(--background-elevated))", color: "hsl(var(--muted))" }}>
-          <AlertTriangle size={15} />
-          Nenhuma validação encontrada para os filtros aplicados.
-        </div>
-      ) : (
-        <div className="overflow-x-auto">
-          <table className="data-table">
-            <thead>
-              <tr>
-                <th>Cliente</th>
-                <th>Vendedor</th>
-                <th>Analista</th>
-                <th>Status</th>
-                <th>Etapa / Progresso</th>
-                <th>Rev.</th>
-                <th>Valor total</th>
-                <th>Mão de obra</th>
-                <th>Recorrente</th>
-                <th>Margem</th>
-                <th>SLA</th>
-                <th>Atualizado</th>
-              </tr>
-            </thead>
-            <tbody>
-              {sortedItems.map((item) => {
-                const valorTotal = item.modelo_comercial === "locacao" ? item.locacao_valor_total : item.venda_valor_total
-                const custo = item.custo_rev_total && item.custo_rev_total > 0 ? item.custo_rev_total : item.custo_prev_total
-                const margem = valorTotal && custo ? ((valorTotal - custo) / valorTotal) * 100 : null
-                const progress = getProgressFromStep(item.etapa_atual)
-                const sla = getSlaStatus(item.atualizado_em)
-                const maoObra = item.venda_valor_mao_obra
-                const recorrente = item.modelo_comercial === "locacao" ? item.locacao_valor_mensal : null
-                const margemStyle =
-                  margem === null
-                    ? { color: "hsl(var(--muted))" }
-                    : margem <= 0
-                      ? { color: "hsl(var(--danger))" }
-                      : margem < 15
-                        ? { color: "hsl(var(--warning))" }
-                        : { color: "hsl(var(--success))" }
+            <div className="flex items-end gap-2">
+              <button
+                type="button"
+                onClick={() => void loadData("refresh")}
+                disabled={loading || refreshing}
+                className="premium-button-secondary inline-flex h-[42px] shrink-0 items-center gap-2 px-4 disabled:opacity-60"
+                title="Atualizar lista"
+              >
+                <RefreshCw size={16} className={refreshing ? "animate-spin" : ""} />
+                <span className="hidden sm:inline">Atualizar</span>
+              </button>
+            </div>
+          </div>
 
+          <div className="mt-4">
+            <span className="mb-2 block text-xs font-medium text-[hsl(var(--muted))]">Status</span>
+            <div
+              className="-mx-1 flex gap-1.5 overflow-x-auto px-1 pb-1 [scrollbar-width:thin]"
+              role="group"
+              aria-label="Filtrar por status"
+            >
+              {statusChips.map((chip) => {
+                const active =
+                  chip.id === "todos" ? statusFilter === "todos" : statusFilter === chip.id
                 return (
-                  <tr key={item.id}>
-                    <td>
-                      <Link
-                        href={`/validacoes/${item.id}`}
-                        className="font-medium transition-colors hover:text-[hsl(var(--primary))]"
-                        style={{ color: "hsl(var(--foreground))" }}
-                      >
-                        {item.nome_cliente}
-                      </Link>
-                    </td>
-                    <td style={{ color: "hsl(var(--muted))" }}>{item.vendedor_nome ?? "—"}</td>
-                    <td style={{ color: "hsl(var(--muted))" }}>{item.analista_nome ?? "—"}</td>
-                    <td>
-                      <span className={STATUS_TAG_CLASS[item.status]}>
-                        {STATUS_LABEL[item.status]}
-                      </span>
-                    </td>
-                    <td>
-                      <p className="mb-1.5 text-xs font-medium" style={{ color: "hsl(var(--foreground))" }}>
-                        {ETAPA_LABEL[item.etapa_atual]}
-                      </p>
-                      <div className="progress-bar w-28">
-                        <div className="progress-bar-fill" style={{ width: `${progress}%` }} />
-                      </div>
-                    </td>
-                    <td style={{ color: "hsl(var(--foreground))" }}>{item.numero_revisoes}</td>
-                    <td style={{ color: "hsl(var(--foreground))" }}>{formatCurrency(valorTotal)}</td>
-                    <td style={{ color: "hsl(var(--foreground))" }}>{formatCurrency(maoObra)}</td>
-                    <td style={{ color: "hsl(var(--foreground))" }}>{formatCurrency(recorrente)}</td>
-                    <td>
-                      <span style={margemStyle} className="font-medium">
-                        {margem === null ? "—" : `${margem.toFixed(1)}%`}
-                      </span>
-                    </td>
-                    <td>
-                      <span className={sla.tagClass}>{sla.label}</span>
-                    </td>
-                    <td className="whitespace-nowrap text-xs" style={{ color: "hsl(var(--muted))" }}>
-                      {formatDistanceToNow(new Date(item.atualizado_em), { addSuffix: true, locale: ptBR })}
-                    </td>
-                  </tr>
+                  <button
+                    key={chip.id}
+                    type="button"
+                    onClick={() => setStatusFilter(chip.id === "todos" ? "todos" : chip.id)}
+                    className={`shrink-0 rounded-lg border px-3 py-1.5 text-xs font-medium transition-colors ${
+                      active
+                        ? "border-transparent bg-[hsl(var(--primary))] text-[hsl(var(--primary-foreground))] shadow-sm"
+                        : "border-[hsl(var(--border))] bg-[hsl(var(--background-elevated))] text-[hsl(var(--muted))] hover:border-[hsl(var(--primary)/0.35)] hover:text-[hsl(var(--foreground))]"
+                    }`}
+                  >
+                    {chip.label}
+                  </button>
                 )
               })}
-            </tbody>
-          </table>
+            </div>
+          </div>
+
+          <button
+            type="button"
+            onClick={() => setAdvancedOpen((o) => !o)}
+            className="mt-4 inline-flex items-center gap-2 text-xs font-semibold text-[hsl(var(--primary))] transition hover:text-[hsl(var(--primary-strong))]"
+            aria-expanded={advancedOpen}
+          >
+            <SlidersHorizontal size={14} />
+            Filtros avançados
+            <ChevronDown size={14} className={`transition-transform ${advancedOpen ? "rotate-180" : ""}`} />
+          </button>
+
+          {advancedOpen ? (
+            <div className="mt-4 grid gap-3 border-t border-[hsl(var(--border))] pt-4 sm:grid-cols-2 lg:grid-cols-4">
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">Etapa</label>
+                <select
+                  value={etapaFilter}
+                  onChange={(event) => setEtapaFilter(event.target.value as "todas" | EtapaValidacao)}
+                  className="premium-input"
+                >
+                  <option value="todas">Todas</option>
+                  {ETAPA_VALIDACAO.map((etapa) => (
+                    <option key={etapa} value={etapa}>
+                      {ETAPA_LABEL[etapa]}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">Analista</label>
+                <select
+                  value={analistaFilter}
+                  onChange={(event) => setAnalistaFilter(event.target.value)}
+                  className="premium-input"
+                >
+                  <option value="todos">Todos</option>
+                  {analistaOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">Vendedor</label>
+                <select
+                  value={vendedorFilter}
+                  onChange={(event) => setVendedorFilter(event.target.value)}
+                  className="premium-input"
+                >
+                  <option value="todos">Todos</option>
+                  {vendedorOptions.map((option) => (
+                    <option key={option.id} value={option.id}>
+                      {option.nome}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">Grupo projeto</label>
+                <select
+                  value={grupoFilter}
+                  onChange={(event) => setGrupoFilter(event.target.value)}
+                  className="premium-input"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="portaria_remota">Portaria remota</option>
+                  <option value="sistema_tecnico">Sistema técnico</option>
+                  <option value="outros">Outros</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">Período</label>
+                <select
+                  value={periodoFilter}
+                  onChange={(event) => setPeriodoFilter(event.target.value as "todos" | "7" | "30" | "90")}
+                  className="premium-input"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="7">Últimos 7 dias</option>
+                  <option value="30">Últimos 30 dias</option>
+                  <option value="90">Últimos 90 dias</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">SLA</label>
+                <select
+                  value={slaFilter}
+                  onChange={(event) =>
+                    setSlaFilter(event.target.value as "todos" | "no_prazo" | "proximo" | "estourado")
+                  }
+                  className="premium-input"
+                >
+                  <option value="todos">Todos</option>
+                  <option value="no_prazo">No prazo</option>
+                  <option value="proximo">Próximo do limite</option>
+                  <option value="estourado">Estourado</option>
+                </select>
+              </div>
+              <div>
+                <label className="mb-1 block text-xs font-medium text-[hsl(var(--muted))]">Ordenação</label>
+                <select
+                  value={sortBy}
+                  onChange={(event) => setSortBy(event.target.value as "data" | "sla" | "valor" | "etapa")}
+                  className="premium-input"
+                >
+                  <option value="data">Data de atualização</option>
+                  <option value="sla">SLA (mais urgente)</option>
+                  <option value="valor">Valor total</option>
+                  <option value="etapa">Etapa atual</option>
+                </select>
+              </div>
+            </div>
+          ) : null}
         </div>
-      )}
-    </section>
+
+        <div className="p-4 sm:p-5">
+          {error ? (
+            <div className="alert-error mb-4 flex items-center gap-2">
+              <AlertTriangle size={14} />
+              {error}
+            </div>
+          ) : null}
+
+          {loading ? (
+            <Loading label="Carregando validações..." rows={5} />
+          ) : isTotallyEmpty ? (
+            <div className="flex flex-col items-center justify-center gap-4 py-14 text-center">
+              <div className="flex h-14 w-14 items-center justify-center rounded-2xl bg-[hsl(var(--primary)/0.1)] text-[hsl(var(--primary))]">
+                <ClipboardList size={28} strokeWidth={1.5} />
+              </div>
+              <div>
+                <p className="text-sm font-medium text-[hsl(var(--foreground))]">Nenhuma validação ainda</p>
+                <p className="mt-1 max-w-sm text-sm text-[hsl(var(--muted))]">
+                  Registre a primeira venda para acompanhar etapas, SLA e aprovações em um só lugar.
+                </p>
+              </div>
+              {canRegister ? (
+                <Link href="/validacoes/nova" className="premium-button">
+                  Registrar venda
+                </Link>
+              ) : null}
+            </div>
+          ) : isFilteredEmpty ? (
+            <div className="flex flex-col items-center gap-4 rounded-xl border border-[hsl(var(--border))] bg-[hsl(var(--background-elevated))] px-6 py-10 text-center">
+              <AlertTriangle className="text-[hsl(var(--warning))]" size={22} />
+              <div>
+                <p className="text-sm font-medium text-[hsl(var(--foreground))]">Nenhum resultado</p>
+                <p className="mt-1 text-sm text-[hsl(var(--muted))]">
+                  Nenhuma validação corresponde aos filtros. Ajuste a busca ou limpe os filtros.
+                </p>
+              </div>
+              <button type="button" onClick={resetFilters} className="premium-button-secondary">
+                Limpar filtros
+              </button>
+            </div>
+          ) : (
+            <>
+              <p className="mb-3 text-xs text-[hsl(var(--muted))]">
+                Mostrando <span className="font-medium text-[hsl(var(--foreground))]">{sortedItems.length}</span> de{" "}
+                <span className="font-medium text-[hsl(var(--foreground))]">{items.length}</span> validações
+              </p>
+
+              <div className="space-y-3 md:hidden">
+                {enrichedItems.map((item) => (
+                  <Link
+                    key={item.id}
+                    href={`/validacoes/${item.id}`}
+                    className="surface-card flex gap-3 rounded-xl p-4 transition hover:border-[hsl(var(--primary)/0.4)] hover:shadow-sm"
+                  >
+                    <div className="min-w-0 flex-1">
+                      <div className="flex flex-wrap items-start justify-between gap-2">
+                        <span className="font-semibold text-[hsl(var(--foreground))]">{item.nome_cliente}</span>
+                        <span className={STATUS_TAG_CLASS[item.status]}>{STATUS_LABEL[item.status]}</span>
+                      </div>
+                      <p className="mt-1 text-xs text-[hsl(var(--muted))]">
+                        {item.vendedor_nome ?? "—"} · {item.analista_nome ?? "—"}
+                      </p>
+                      <div className="mt-3 flex flex-wrap items-center gap-2 text-xs">
+                        <span className="font-medium text-[hsl(var(--foreground))]">{ETAPA_LABEL[item.etapa_atual]}</span>
+                        <span className="text-[hsl(var(--fg-subtle))]">{item.progress}%</span>
+                        <span className="text-[hsl(var(--muted))]">·</span>
+                        <span className="font-medium text-[hsl(var(--foreground))]">
+                          {formatCurrency(item.valorTotal)}
+                        </span>
+                        <span className="text-[hsl(var(--muted))]">·</span>
+                        <span className={item.sla.tagClass}>{item.sla.label}</span>
+                      </div>
+                      <p className="mt-2 text-[0.65rem] text-[hsl(var(--fg-subtle))]">
+                        Atualizado{" "}
+                        {formatDistanceToNow(new Date(item.atualizado_em), { addSuffix: true, locale: ptBR })}
+                      </p>
+                    </div>
+                    <ChevronRight className="mt-1 h-5 w-5 shrink-0 text-[hsl(var(--muted))]" aria-hidden />
+                  </Link>
+                ))}
+              </div>
+
+              <div className="hidden overflow-x-auto md:block">
+                <table className="data-table min-w-[720px] xl:min-w-0">
+                  <thead>
+                    <tr>
+                      <th className="pl-0">Cliente</th>
+                      <th className="hidden xl:table-cell">Vendedor</th>
+                      <th className="hidden xl:table-cell">Analista</th>
+                      <th>Status</th>
+                      <th>Etapa</th>
+                      <th className="hidden xl:table-cell">Rev.</th>
+                      <th>Valor</th>
+                      <th className="hidden xl:table-cell">Mão de obra</th>
+                      <th className="hidden xl:table-cell">Recorrente</th>
+                      <th className="hidden xl:table-cell">Margem</th>
+                      <th>SLA</th>
+                      <th className="pr-0 text-right">Atualizado</th>
+                    </tr>
+                  </thead>
+                  <tbody>
+                    {enrichedItems.map((item) => (
+                      <tr key={item.id} className="group">
+                        <td className="pl-0">
+                          <Link
+                            href={`/validacoes/${item.id}`}
+                            className="font-medium text-[hsl(var(--foreground))] transition-colors group-hover:text-[hsl(var(--primary))]"
+                          >
+                            {item.nome_cliente}
+                          </Link>
+                        </td>
+                        <td className="hidden text-[hsl(var(--muted))] xl:table-cell">
+                          {item.vendedor_nome ?? "—"}
+                        </td>
+                        <td className="hidden text-[hsl(var(--muted))] xl:table-cell">
+                          {item.analista_nome ?? "—"}
+                        </td>
+                        <td>
+                          <span className={STATUS_TAG_CLASS[item.status]}>{STATUS_LABEL[item.status]}</span>
+                        </td>
+                        <td>
+                          <p className="mb-1 text-xs font-medium text-[hsl(var(--foreground))]">
+                            {ETAPA_LABEL[item.etapa_atual]}
+                          </p>
+                          <div className="progress-bar w-24 xl:w-28">
+                            <div className="progress-bar-fill" style={{ width: `${item.progress}%` }} />
+                          </div>
+                        </td>
+                        <td className="hidden text-[hsl(var(--foreground))] xl:table-cell">{item.numero_revisoes}</td>
+                        <td className="whitespace-nowrap text-[hsl(var(--foreground))]">
+                          {formatCurrency(item.valorTotal)}
+                        </td>
+                        <td className="hidden whitespace-nowrap text-[hsl(var(--foreground))] xl:table-cell">
+                          {formatCurrency(item.maoObra)}
+                        </td>
+                        <td className="hidden whitespace-nowrap text-[hsl(var(--foreground))] xl:table-cell">
+                          {formatCurrency(item.recorrente)}
+                        </td>
+                        <td className="hidden xl:table-cell">
+                          <span className={margemClass(item.margem)}>
+                            {item.margem === null ? "—" : `${item.margem.toFixed(1)}%`}
+                          </span>
+                        </td>
+                        <td>
+                          <span className={item.sla.tagClass}>{item.sla.label}</span>
+                        </td>
+                        <td className="whitespace-nowrap pr-0 text-right text-xs text-[hsl(var(--muted))]">
+                          {formatDistanceToNow(new Date(item.atualizado_em), { addSuffix: true, locale: ptBR })}
+                        </td>
+                      </tr>
+                    ))}
+                  </tbody>
+                </table>
+              </div>
+            </>
+          )}
+        </div>
+      </section>
+    </>
   )
 }

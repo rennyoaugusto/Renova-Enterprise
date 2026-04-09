@@ -9,20 +9,20 @@ export default async function ValidacoesPage() {
   const canCreate = role ? ["super_admin", "coordenador", "analista", "vendedor"].includes(role) : false
 
   return (
-    <main className="mx-auto flex min-h-full w-full max-w-6xl flex-col gap-6 px-4 py-8">
+    <main className="page-wrap gap-8">
       <PageHeader
         title="Validações"
-        description="Painel principal do módulo de validação de vendas."
+        description="Acompanhe vendas em andamento, SLA e aprovações. Use os chips de status para focar no que importa agora."
         actions={
           canCreate ? (
-            <Link href="/validacoes/nova" className="premium-button">
+            <Link href="/validacoes/nova" className="premium-button inline-flex items-center gap-2">
               Registrar venda
             </Link>
           ) : null
         }
       />
 
-      <ValidacoesList />
+      <ValidacoesList canRegister={canCreate} />
     </main>
   )
 }

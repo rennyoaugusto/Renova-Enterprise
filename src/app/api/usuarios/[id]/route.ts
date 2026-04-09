@@ -5,8 +5,90 @@ import { ADMIN_ROLES } from "@/lib/constants"
 import { supabaseAdmin } from "@/lib/supabase/admin"
 import { updateUserSchema } from "@/lib/validations"
 
+const UUID_RE = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i
+
 type RouteParams = {
   params: { id: string }
+}
+
+/**
+ * Remove vínculos do perfil e exclui o usuário no Auth (cascade remove profiles).
+ * Validações em que o usuário era vendedor/analista/criador passam a apontar para `reassignToId` (admin que executa a exclusão).
+ */
+async function purgeUserAndDeleteAuth(
+  userId: string,
+  reassignToId: string
+): Promise<{ error?: string }> {
+  const { error: e1 } = await supabaseAdmin.from("validacao_log").delete().eq("usuario_id", userId)
+  if (e1) {
+    return { error: `Auditoria: ${e1.message}` }
+  }
+
+  const { error: e2 } = await supabaseAdmin.from("notificacoes").delete().eq("destinatario_id", userId)
+  if (e2) {
+    return { error: `Notificações: ${e2.message}` }
+  }
+
+  const { error: e3 } = await supabaseAdmin.from("revisoes").delete().eq("solicitante_id", userId)
+  if (e3) {
+    return { error: `Revisões: ${e3.message}` }
+  }
+
+  const { error: e4 } = await supabaseAdmin.from("anexos").delete().eq("enviado_por", userId)
+  if (e4) {
+    return { error: `Anexos: ${e4.message}` }
+  }
+
+  const { error: e5 } = await supabaseAdmin.from("etapas").update({ concluida_por: null }).eq("concluida_por", userId)
+  if (e5) {
+    return { error: `Etapas: ${e5.message}` }
+  }
+
+  const { error: e6a } = await supabaseAdmin.from("validacoes").update({ cancelado_por: null }).eq("cancelado_por", userId)
+  if (e6a) {
+    return { error: `Validações: ${e6a.message}` }
+  }
+  const { error: e6b } = await supabaseAdmin.from("validacoes").update({ aprovado_por: null }).eq("aprovado_por", userId)
+  if (e6b) {
+    return { error: `Validações: ${e6b.message}` }
+  }
+
+  const { error: e7a } = await supabaseAdmin
+    .from("validacoes")
+    .update({ vendedor_id: reassignToId })
+    .eq("vendedor_id", userId)
+  if (e7a) {
+    return { error: `Validações (vendedor): ${e7a.message}` }
+  }
+  const { error: e7b } = await supabaseAdmin
+    .from("validacoes")
+    .update({ analista_id: reassignToId })
+    .eq("analista_id", userId)
+  if (e7b) {
+    return { error: `Validações (analista): ${e7b.message}` }
+  }
+  const { error: e7c } = await supabaseAdmin
+    .from("validacoes")
+    .update({ criado_por: reassignToId })
+    .eq("criado_por", userId)
+  if (e7c) {
+    return { error: `Validações (criador): ${e7c.message}` }
+  }
+
+  const { error: e8 } = await supabaseAdmin
+    .from("configuracoes")
+    .update({ atualizado_por: null })
+    .eq("atualizado_por", userId)
+  if (e8) {
+    return { error: `Configurações: ${e8.message}` }
+  }
+
+  const { error: e9 } = await supabaseAdmin.auth.admin.deleteUser(userId)
+  if (e9) {
+    return { error: e9.message }
+  }
+
+  return {}
 }
 
 export async function PATCH(request: Request, { params }: RouteParams) {
@@ -77,15 +159,28 @@ export async function DELETE(_request: Request, { params }: RouteParams) {
     return NextResponse.json({ error: "Acesso negado" }, { status: 403 })
   }
 
-  if (user?.id === params.id) {
+  if (!UUID_RE.test(params.id)) {
+    return NextResponse.json({ error: "ID de usuário inválido" }, { status: 400 })
+  }
+
+  if (!user) {
+    return NextResponse.json({ error: "Não autenticado" }, { status: 401 })
+  }
+
+  if (user.id === params.id) {
     return NextResponse.json({ error: "Você não pode excluir sua própria conta" }, { status: 400 })
   }
 
-  const { error } = await supabaseAdmin.auth.admin.deleteUser(params.id)
+  const { error: purgeError } = await purgeUserAndDeleteAuth(params.id, user.id)
 
-  if (error) {
-    return NextResponse.json({ error: "Falha ao excluir usuário" }, { status: 500 })
+  if (purgeError) {
+    return NextResponse.json({ error: purgeError }, { status: 500 })
   }
 
-  return NextResponse.json({ ok: true })
+  return NextResponse.json({
+    ok: true,
+    mode: "removido",
+    message:
+      "Usuário removido. Validações em que ele figurava como vendedor, analista ou criador foram reatribuídas ao seu usuário."
+  })
 }

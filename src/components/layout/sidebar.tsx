@@ -1,3 +1,5 @@
+import Image from "next/image"
+
 import { AccountPanel } from "@/components/layout/account-panel"
 import { NavItem } from "@/components/layout/nav-item"
 import { SYSTEM_NAV_ITEMS } from "@/lib/navigation"
@@ -14,7 +16,7 @@ export function Sidebar({ role, userName, userEmail }: SidebarProps) {
 
   return (
     <aside
-      className="hidden h-screen w-[224px] flex-shrink-0 flex-col md:flex"
+      className="hidden h-screen w-[272px] flex-shrink-0 flex-col md:flex"
       style={{
         background: "hsl(var(--background-elevated))",
         borderRight: "1px solid hsl(var(--border))"
@@ -25,21 +27,19 @@ export function Sidebar({ role, userName, userEmail }: SidebarProps) {
         className="flex items-center gap-3 px-4 py-4"
         style={{ borderBottom: "1px solid hsl(var(--border))" }}
       >
-        <div
-          className="flex h-8 w-8 flex-shrink-0 items-center justify-center rounded-lg text-sm font-bold text-white"
-          style={{
-            background: "linear-gradient(135deg, hsl(var(--primary)), hsl(var(--accent)))",
-            boxShadow: "0 4px 12px hsl(var(--primary) / 0.3)"
-          }}
-        >
-          P
-        </div>
+        <Image
+          src="/brand/renova-icon.png"
+          alt="Renova logo"
+          width={34}
+          height={34}
+          className="rounded-lg"
+        />
         <div className="min-w-0">
-          <p className="text-sm font-semibold leading-none" style={{ color: "hsl(var(--foreground))" }}>
-            PILAR
+          <p className="text-[0.9375rem] font-semibold leading-tight" style={{ color: "hsl(var(--foreground))" }}>
+            Renova
           </p>
-          <p className="mt-0.5 text-[11px] leading-none" style={{ color: "hsl(var(--muted))" }}>
-            Sistema operacional
+          <p className="mt-0.5 text-xs leading-snug" style={{ color: "hsl(var(--muted))" }}>
+            Enterprise Management System
           </p>
         </div>
       </div>
@@ -47,7 +47,7 @@ export function Sidebar({ role, userName, userEmail }: SidebarProps) {
       {/* Navigation */}
       <nav className="flex flex-1 flex-col overflow-y-auto px-2 py-3">
         <p
-          className="mb-1.5 px-2.5 text-[10px] font-semibold uppercase tracking-[0.14em]"
+          className="mb-1.5 px-2.5 text-[11px] font-semibold uppercase tracking-[0.12em]"
           style={{ color: "hsl(var(--muted))" }}
         >
           Navegação
@@ -65,7 +65,7 @@ export function Sidebar({ role, userName, userEmail }: SidebarProps) {
         style={{ borderTop: "1px solid hsl(var(--border))" }}
       >
         <AccountPanel userName={userName} userEmail={userEmail} role={role} />
-        <p className="mt-2 text-[10px]" style={{ color: "hsl(var(--muted))" }}>
+        <p className="mt-2 text-[11px]" style={{ color: "hsl(var(--muted))" }}>
           MK Solutions &middot; v1.0
         </p>
       </div>

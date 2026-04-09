@@ -22,7 +22,8 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
   const [theme, setThemeState] = useState<Theme>("system")
 
   useEffect(() => {
-    const storedTheme = window.localStorage.getItem("pilar-theme") as Theme | null
+    const storedTheme =
+      (window.localStorage.getItem("renova-theme") ?? window.localStorage.getItem("pilar-theme")) as Theme | null
     const preferredTheme = storedTheme ?? "system"
 
     setThemeState(preferredTheme)
@@ -46,13 +47,13 @@ export function ThemeProvider({ children }: { children: React.ReactNode }) {
       theme,
       setTheme: (nextTheme) => {
         setThemeState(nextTheme)
-        window.localStorage.setItem("pilar-theme", nextTheme)
+        window.localStorage.setItem("renova-theme", nextTheme)
         applyTheme(nextTheme)
       },
       toggleTheme: () => {
         const nextTheme = theme === "dark" ? "light" : "dark"
         setThemeState(nextTheme)
-        window.localStorage.setItem("pilar-theme", nextTheme)
+        window.localStorage.setItem("renova-theme", nextTheme)
         applyTheme(nextTheme)
       }
     }),

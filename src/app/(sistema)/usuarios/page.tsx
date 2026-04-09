@@ -18,12 +18,12 @@ export default async function UsuariosPage() {
   }
 
   return (
-    <main className="page-wrap">
+    <main className="page-wrap gap-8">
       <PageHeader
         title="Gestão de usuários"
-        description="Convites, papéis e status dos usuários do sistema."
+        description="Convites, papéis e status da equipe. Use os filtros para localizar alguém rapidamente."
         actions={
-          <Link href="/usuarios/convidar" className="premium-button">
+          <Link href="/usuarios/convidar" className="premium-button inline-flex items-center gap-2">
             Convidar usuário
           </Link>
         }
